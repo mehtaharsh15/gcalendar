@@ -5,9 +5,10 @@ Alpha version
 This application requires Frappe v10.0.0 or higher.
 You can also install it on top of ERPNext.
 
-bench get-app mautic_integration https://github.com/DOKOS-IO/gcalendar/
-bench install-app gcalendar
-bench restart && bench migrate
+- bench get-app gcalendar https://github.com/DOKOS-IO/gcalendar
+- bench install-app gcalendar
+- bench restart && bench migrate
+
 The application is scheduled to run every three minutes by default. Verify that your scheduler is enabled (bench enable-scheduler).
 
 Your Frappe site need to have SSL certificates.
