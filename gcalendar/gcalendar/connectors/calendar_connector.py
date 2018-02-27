@@ -13,7 +13,7 @@ class CalendarConnector(BaseConnection):
 		self.connector = connector
 		settings = frappe.get_doc("GCalendar Settings", None)
 
-		self.account = frappe.get_doc("GCalendar Account", "chdecultot@dokos.io")
+		self.account = frappe.get_doc("GCalendar Account", connector.username)
 
 		self.credentials_dict = {
 			'token': self.account.get_password(fieldname='session_token', raise_exception=False),
