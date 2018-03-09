@@ -21,7 +21,7 @@ Your Frappe site need to have SSL certificates.
 4. Add your Client ID and Client Secret in the Gcalendar application: in "Google Calendar>GCalendar Settings"
 
 5. For each calendar user, create a new calendar account in "Google Calendar>GCalendar Account"  
-You should be redirected to a blank page displaying {}
+You should be redirected to a success page
 
 #### Features
 
