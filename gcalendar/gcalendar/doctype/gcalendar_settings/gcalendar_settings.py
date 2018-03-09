@@ -30,17 +30,21 @@ class GCalendarSettings(Document):
 				failed_run = frappe.get_doc("Data Migration Run", dict(status=('in', ['Fail', 'Error'])))
 				failed_run.delete()
 
+			started = frappe.db.exists('Data Migration Run', dict(status=('in', ['Started']),	name=('!=', self.name)))
+			if started:
+				print("Break")
+				return
+
 			try:
 				doc = frappe.get_doc({
 					'doctype': 'Data Migration Run',
 					'data_migration_plan': 'GCalendar Sync',
 					'data_migration_connector': 'Calendar Connector-' + account.name
 				}).insert()
-			except Exception:
-				frappe.log_error(frappe.get_traceback())
-
-			try:
-				doc.run()
+				try:
+					doc.run()
+				except Exception:
+					frappe.log_error(frappe.get_traceback())
 			except Exception:
 				frappe.log_error(frappe.get_traceback())
 
@@ -94,6 +98,8 @@ def google_callback(code=None, state=None, account=None):
 			if 'refresh_token' in r:
 				frappe.db.set_value("GCalendar Account", account.name, "refresh_token", r['refresh_token'])
 			frappe.db.commit()
+			frappe.local.response["type"] = "redirect"
+			frappe.local.response["location"] = "/success.html"
 			return
 		except Exception as e:
 			frappe.throw(e.message)

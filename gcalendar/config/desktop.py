@@ -6,8 +6,8 @@ def get_data():
 	return [
 		{
 			"module_name": "Gcalendar",
-			"color": "#f5f5f5",
-			"icon": "octicon octicon-git-compare",
+			"color": "#4285f4",
+			"icon": "octicon octicon-calendar",
 			"type": "module",
 			"label": _("Google Calendar")
 		}

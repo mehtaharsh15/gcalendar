@@ -2,7 +2,7 @@
  "creation": "2017-12-19 14:49:31.441916", 
  "docstatus": 0, 
  "doctype": "Data Migration Plan", 
- "idx": 73, 
+ "idx": 89, 
  "mappings": [
   {
    "enabled": 1, 
@@ -13,7 +13,7 @@
    "mapping": "GCalendar to Event"
   }
  ], 
- "modified": "2018-02-19 21:10:05.897021", 
+ "modified": "2018-03-09 10:40:26.745641", 
  "modified_by": "Administrator", 
  "module": "Gcalendar", 
  "name": "GCalendar Sync", 

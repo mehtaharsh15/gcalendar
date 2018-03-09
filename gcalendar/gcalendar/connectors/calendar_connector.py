@@ -63,14 +63,15 @@ class CalendarConnector(BaseConnection):
 			if doc["start_datetime"] >= datetime.now():
 				try:
 					doctype = "Event"
-					return self.insert_events(doctype, doc)
+					e = self.insert_events(doctype, doc)
+					return e
 				except Exception:
 					frappe.log_error(frappe.get_traceback(), "GCalendar Synchronization Error")
 
 
 	def update(self, doctype, doc, migration_id):
 		if doctype == 'Events':
-			if doc["start_datetime"] >= datetime.now():
+			if doc["start_datetime"] >= datetime.now() and migration_id is not None:
 				try:
 					doctype = "Event"
 					return self.update_events(doctype, doc, migration_id)
@@ -151,6 +152,8 @@ class CalendarConnector(BaseConnection):
 	def return_dates(self, doc):
 		timezone = frappe.db.get_value("System Settings", None, "time_zone")
 		tz = pytz.timezone(timezone)
+		if doc.end_datetime is None:
+			doc.end_datetime = doc.start_datetime
 		if doc.all_day == 1:
 			return {
 						'start': {
