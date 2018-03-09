@@ -89,7 +89,7 @@ class CalendarConnector(BaseConnection):
 		page_token = None
 		results = []
 		while True:
-			events = self.gcalendar.events().list(calendarId=self.account.gcalendar_id, maxResults=page_length, singleEvents=True, orderBy='startTime').execute()
+			events = self.gcalendar.events().list(calendarId=self.account.gcalendar_id, maxResults=page_length, singleEvents=True, showDeleted=True, orderBy='startTime').execute()
 			for event in events['items']:
 				results.append(event)
 
