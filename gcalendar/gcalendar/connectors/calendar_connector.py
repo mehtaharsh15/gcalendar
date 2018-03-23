@@ -65,23 +65,29 @@ class CalendarConnector(BaseConnection):
 
 	def insert(self, doctype, doc):
 		if doctype == 'Events':
-			if doc["start_datetime"] >= datetime.now():
-				try:
-					doctype = "Event"
-					e = self.insert_events(doctype, doc)
-					return e
-				except Exception:
-					frappe.log_error(frappe.get_traceback(), "GCalendar Synchronization Error")
+			from frappe.desk.doctype.event.event import has_permission
+			d = frappe.get_doc("Event", doc["name"])
+			if has_permission(d, self.account.name):
+				if doc["start_datetime"] >= datetime.now():
+					try:
+						doctype = "Event"
+						e = self.insert_events(doctype, doc)
+						return e
+					except Exception:
+						frappe.log_error(frappe.get_traceback(), "GCalendar Synchronization Error")
 
 
 	def update(self, doctype, doc, migration_id):
 		if doctype == 'Events':
-			if doc["start_datetime"] >= datetime.now() and migration_id is not None:
-				try:
-					doctype = "Event"
-					return self.update_events(doctype, doc, migration_id)
-				except Exception:
-					frappe.log_error(frappe.get_traceback(), "GCalendar Synchronization Error")
+			from frappe.desk.doctype.event.event import has_permission
+			d = frappe.get_doc("Event", doc["name"])
+			if has_permission(d, self.account.name):
+				if doc["start_datetime"] >= datetime.now() and migration_id is not None:
+					try:
+						doctype = "Event"
+						return self.update_events(doctype, doc, migration_id)
+					except Exception:
+						frappe.log_error(frappe.get_traceback(), "GCalendar Synchronization Error")
 
 	def delete(self, doctype, migration_id):
 		if doctype == 'Events':
@@ -101,7 +107,6 @@ class CalendarConnector(BaseConnection):
 			page_token = events.get('nextPageToken')
 			if not page_token:
 				break
-		frappe.logger().debug(results)
 		return list(results)
 
 	def insert_events(self, doctype, doc):
@@ -112,6 +117,9 @@ class CalendarConnector(BaseConnection):
 
 		dates = self.return_dates(doc)
 		event.update(dates)
+
+		if doc.gcalendar_sync_id:
+			event.update({"id": doc.gcalendar_sync_id})
 
 		if doc.repeat_this_event != 0:
 			recurrence = self.return_recurrence(doctype, doc)
@@ -125,29 +133,34 @@ class CalendarConnector(BaseConnection):
 			frappe.log_error(frappe.get_traceback(), "GCalendar Synchronization Error")
 
 	def update_events(self, doctype, doc, migration_id):
-		event = self.gcalendar.events().get(calendarId=self.account.gcalendar_id, eventId=migration_id).execute()
-		event = {
-			'summary': doc.summary,
-			'description': doc.description
-		}
-
-		if doc.event_type == "Cancel":
-			event.update({"status": "cancelled"})
-
-		dates = self.return_dates(doc)
-		event.update(dates)
-
-		if doc.repeat_this_event != 0:
-			recurrence = self.return_recurrence(doctype, doc)
-			if recurrence:
-				frappe.logger().debug({"recurrence": recurrence})
-				event.update({"recurrence": ["RRULE:" + str(recurrence)]})
-
 		try:
-			updated_event = self.gcalendar.events().update(calendarId=self.account.gcalendar_id, eventId=migration_id, body=event).execute()
-			return {self.name_field: updated_event["id"]}
-		except Exception as e:
-			frappe.log_error(e, "GCalendar Synchronization Error")
+			event = self.gcalendar.events().get(calendarId=self.account.gcalendar_id, eventId=migration_id).execute()
+			event = {
+				'summary': doc.summary,
+				'description': doc.description
+			}
+
+			if doc.event_type == "Cancel":
+				event.update({"status": "cancelled"})
+
+			dates = self.return_dates(doc)
+			event.update(dates)
+
+			if doc.repeat_this_event != 0:
+				recurrence = self.return_recurrence(doctype, doc)
+				if recurrence:
+					event.update({"recurrence": ["RRULE:" + str(recurrence)]})
+
+			try:
+				updated_event = self.gcalendar.events().update(calendarId=self.account.gcalendar_id, eventId=migration_id, body=event).execute()
+				return {self.name_field: updated_event["id"]}
+			except Exception as e:
+				frappe.log_error(e, "GCalendar Synchronization Error")
+		except HttpError as err:
+			if err.resp.status in [404]:
+				self.insert_events(doctype, doc)
+			else:
+				frappe.log_error(err.resp, "GCalendar Synchronization Error")
 
 	def delete_events(self, migration_id):
 		try:
