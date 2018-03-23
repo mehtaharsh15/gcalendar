@@ -43,12 +43,9 @@ You should be redirected to a success page
 
 #### ToDo and Know Issues
 
-There may be some issues with recurring events set at the end of the month.
-If an event is set to be recurring for the 31st, it is not yet correctly integrated in Google Calendar for months ending the 30th (or February).
+For recurring events, if a single event within a recurring event is deleted in Google Calendar, it will not be deleted on ERPNext side.
 
 If there is an integration error, the event will not be synchronized until you make any change in it (a simple "Save" in Frappe should trigger another synchronization try)
-
-Events fetched from Google Calendar are not yet timezone translated (your Google Calendar timezone should be identical to your ERPNext Timezone)
 
 #### License
 

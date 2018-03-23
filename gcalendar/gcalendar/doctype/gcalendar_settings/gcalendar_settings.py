@@ -25,28 +25,8 @@ class GCalendarSettings(Document):
 		accounts = frappe.get_all("GCalendar Account", filters={'enabled': 1})
 
 		for account in accounts:
-			exists = frappe.db.exists('Data Migration Run', dict(status=('in', ['Fail', 'Error']),	name=('!=', self.name)))
-			if exists:
-				failed_run = frappe.get_doc("Data Migration Run", dict(status=('in', ['Fail', 'Error'])))
-				failed_run.delete()
-
-			started = frappe.db.exists('Data Migration Run', dict(status=('in', ['Started']),	name=('!=', self.name)))
-			if started:
-				print("Break")
-				return
-
-			try:
-				doc = frappe.get_doc({
-					'doctype': 'Data Migration Run',
-					'data_migration_plan': 'GCalendar Sync',
-					'data_migration_connector': 'Calendar Connector-' + account.name
-				}).insert()
-				try:
-					doc.run()
-				except Exception:
-					frappe.log_error(frappe.get_traceback())
-			except Exception:
-				frappe.log_error(frappe.get_traceback())
+			frappe.logger().debug(account)
+			frappe.enqueue('gcalendar.gcalendar.doctype.gcalendar_settings.gcalendar_settings.run_sync', account=account)
 
 	def get_access_token(self):
 		if not self.refresh_token:
@@ -70,6 +50,29 @@ def sync():
 		gcalendar_settings = frappe.get_doc('GCalendar Settings')
 		if gcalendar_settings.enable == 1:
 			gcalendar_settings.sync()
+	except Exception:
+		frappe.log_error(frappe.get_traceback())
+
+def run_sync(account):
+	exists = frappe.db.exists('Data Migration Run', dict(status=('in', ['Fail', 'Error'])))
+	if exists:
+		failed_run = frappe.get_doc("Data Migration Run", dict(status=('in', ['Fail', 'Error'])))
+		failed_run.delete()
+
+	started = frappe.db.exists('Data Migration Run', dict(status=('in', ['Started'])))
+	if started:
+		return
+
+	try:
+		doc = frappe.get_doc({
+			'doctype': 'Data Migration Run',
+			'data_migration_plan': 'GCalendar Sync',
+			'data_migration_connector': 'Calendar Connector-' + account.name
+		}).insert()
+		try:
+			doc.run()
+		except Exception:
+			frappe.log_error(frappe.get_traceback())
 	except Exception:
 		frappe.log_error(frappe.get_traceback())
 

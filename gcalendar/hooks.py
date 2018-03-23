@@ -79,13 +79,13 @@ app_license = "GPLv3"
 # ---------------
 # Hook on document methods and events
 
-# doc_events = {
-# 	"*": {
-# 		"on_update": "method",
+doc_events = {
+	"Event": {
+		"after_insert": "gcalendar.gcalendar.utils.utils.remove_syncid_on_duplicates",
 # 		"on_cancel": "method",
 # 		"on_trash": "method"
-#	}
-# }
+	}
+}
 
 # Scheduled Tasks
 # ---------------

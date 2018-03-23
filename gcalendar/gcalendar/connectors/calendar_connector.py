@@ -7,6 +7,7 @@ from googleapiclient.errors import HttpError
 import time
 from datetime import datetime
 import pytz
+from frappe.utils import add_days
 
 class CalendarConnector(BaseConnection):
 	def __init__(self, connector):
@@ -33,9 +34,10 @@ class CalendarConnector(BaseConnection):
 
 	def check_remote_calendar(self):
 		def _create_calendar():
+			timezone = frappe.db.get_value("System Settings", None, "time_zone")
 			calendar = {
 				'summary': self.account.calendar_name,
-				'timeZone': 'Europe/Paris'
+				'timeZone': timezone
 			}
 			try:
 				created_calendar = self.gcalendar.calendars().insert(body=calendar).execute()
@@ -44,7 +46,10 @@ class CalendarConnector(BaseConnection):
 				frappe.log_error(frappe.get_traceback())
 		try:
 			if self.account.gcalendar_id is not None:
-				calendar = self.gcalendar.calendars().get(calendarId=self.account.gcalendar_id).execute()
+				try:
+					calendar = self.gcalendar.calendars().get(calendarId=self.account.gcalendar_id).execute()
+				except Exception:
+					frappe.log_error(frappe.get_traceback())
 			else:
 				_create_calendar()
 		except HttpError as err:
@@ -60,23 +65,29 @@ class CalendarConnector(BaseConnection):
 
 	def insert(self, doctype, doc):
 		if doctype == 'Events':
-			if doc["start_datetime"] >= datetime.now():
-				try:
-					doctype = "Event"
-					e = self.insert_events(doctype, doc)
-					return e
-				except Exception:
-					frappe.log_error(frappe.get_traceback(), "GCalendar Synchronization Error")
+			from frappe.desk.doctype.event.event import has_permission
+			d = frappe.get_doc("Event", doc["name"])
+			if has_permission(d, self.account.name):
+				if doc["start_datetime"] >= datetime.now():
+					try:
+						doctype = "Event"
+						e = self.insert_events(doctype, doc)
+						return e
+					except Exception:
+						frappe.log_error(frappe.get_traceback(), "GCalendar Synchronization Error")
 
 
 	def update(self, doctype, doc, migration_id):
 		if doctype == 'Events':
-			if doc["start_datetime"] >= datetime.now() and migration_id is not None:
-				try:
-					doctype = "Event"
-					return self.update_events(doctype, doc, migration_id)
-				except Exception:
-					frappe.log_error(frappe.get_traceback(), "GCalendar Synchronization Error")
+			from frappe.desk.doctype.event.event import has_permission
+			d = frappe.get_doc("Event", doc["name"])
+			if has_permission(d, self.account.name):
+				if doc["start_datetime"] >= datetime.now() and migration_id is not None:
+					try:
+						doctype = "Event"
+						return self.update_events(doctype, doc, migration_id)
+					except Exception:
+						frappe.log_error(frappe.get_traceback(), "GCalendar Synchronization Error")
 
 	def delete(self, doctype, migration_id):
 		if doctype == 'Events':
@@ -89,11 +100,11 @@ class CalendarConnector(BaseConnection):
 		page_token = None
 		results = []
 		while True:
-			events = self.gcalendar.events().list(calendarId=self.account.gcalendar_id, maxResults=page_length, singleEvents=True, showDeleted=True, orderBy='startTime').execute()
+			events = self.gcalendar.events().list(calendarId=self.account.gcalendar_id, maxResults=page_length, singleEvents=False, showDeleted=True).execute()
 			for event in events['items']:
 				results.append(event)
 
-		 	page_token = events.get('nextPageToken')
+			page_token = events.get('nextPageToken')
 			if not page_token:
 				break
 		return list(results)
@@ -107,6 +118,9 @@ class CalendarConnector(BaseConnection):
 		dates = self.return_dates(doc)
 		event.update(dates)
 
+		if doc.gcalendar_sync_id:
+			event.update({"id": doc.gcalendar_sync_id})
+
 		if doc.repeat_this_event != 0:
 			recurrence = self.return_recurrence(doctype, doc)
 			if not not recurrence:
@@ -119,28 +133,34 @@ class CalendarConnector(BaseConnection):
 			frappe.log_error(frappe.get_traceback(), "GCalendar Synchronization Error")
 
 	def update_events(self, doctype, doc, migration_id):
-		event = self.gcalendar.events().get(calendarId=self.account.gcalendar_id, eventId=migration_id).execute()
-		event = {
-			'summary': doc.summary,
-			'description': doc.description
-		}
-
-		if doc.event_type == "Cancel":
-			event.update({"status": "cancelled"})
-
-		dates = self.return_dates(doc)
-		event.update(dates)
-
-		if doc.repeat_this_event != 0:
-			recurrence = self.return_recurrence(doctype, doc)
-			if not not recurrence:
-				event.update({"recurrence": ["RRULE:" + str(recurrence)]})
-
 		try:
-			updated_event = self.gcalendar.events().update(calendarId=self.account.gcalendar_id, eventId=migration_id, body=event).execute()
-			return {self.name_field: updated_event["id"]}
-		except Exception as e:
-			frappe.log_error(e, "GCalendar Synchronization Error")
+			event = self.gcalendar.events().get(calendarId=self.account.gcalendar_id, eventId=migration_id).execute()
+			event = {
+				'summary': doc.summary,
+				'description': doc.description
+			}
+
+			if doc.event_type == "Cancel":
+				event.update({"status": "cancelled"})
+
+			dates = self.return_dates(doc)
+			event.update(dates)
+
+			if doc.repeat_this_event != 0:
+				recurrence = self.return_recurrence(doctype, doc)
+				if recurrence:
+					event.update({"recurrence": ["RRULE:" + str(recurrence)]})
+
+			try:
+				updated_event = self.gcalendar.events().update(calendarId=self.account.gcalendar_id, eventId=migration_id, body=event).execute()
+				return {self.name_field: updated_event["id"]}
+			except Exception as e:
+				frappe.log_error(e, "GCalendar Synchronization Error")
+		except HttpError as err:
+			if err.resp.status in [404]:
+				self.insert_events(doctype, doc)
+			else:
+				frappe.log_error(err.resp, "GCalendar Synchronization Error")
 
 	def delete_events(self, migration_id):
 		try:
@@ -178,10 +198,8 @@ class CalendarConnector(BaseConnection):
 					}
 
 	def return_recurrence(self, doctype, doc):
-		#TODO: Ajust recurrence for special dates
 		e = frappe.get_doc(doctype, doc.name)
 		if e.repeat_till is not None:
-			timezone = frappe.db.get_value("System Settings", None, "time_zone")
 			end_date = datetime.combine(e.repeat_till, datetime.min.time()).strftime('UNTIL=%Y%m%dT%H%M%SZ')
 		else:
 			end_date = None
@@ -209,7 +227,8 @@ class CalendarConnector(BaseConnection):
 		elif e.repeat_on == "Every Week":
 			frequency = "FREQ=WEEKLY"
 		elif e.repeat_on == "Every Month":
-			frequency = "FREQ=MONTHLY"
+			frequency = "FREQ=MONTHLY;BYDAY=SU,MO,TU,WE,TH,FR,SA;BYSETPOS=-1"
+			end_date = datetime.combine(add_days(e.repeat_till, 1), datetime.min.time()).strftime('UNTIL=%Y%m%dT%H%M%SZ')
 		elif e.repeat_on == "Every Year":
 			frequency = "FREQ=YEARLY"
 		else:
