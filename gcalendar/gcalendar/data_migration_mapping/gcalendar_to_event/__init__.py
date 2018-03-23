@@ -7,7 +7,9 @@ from pytz import timezone
 
 
 def pre_process(events):
-	frappe.logger().debug({"events": events})
+	frappe.logger().debug({"calendar": events['creator']['email']})
+	frappe.logger().debug({"events": events['summary']})
+	frappe.logger().debug({"events": events['id']})
 	if events["status"] == "cancelled":
 		if frappe.db.exists("Event", dict(gcalendar_sync_id=events["id"])):
 			e = frappe.get_doc("Event", dict(gcalendar_sync_id=events["id"]))

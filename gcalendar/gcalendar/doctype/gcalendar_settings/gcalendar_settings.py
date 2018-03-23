@@ -10,6 +10,8 @@ from frappe.utils import get_request_site_address
 import requests
 from frappe.utils.response import json_handler
 from requests_oauthlib import OAuth2Session
+import time
+from frappe.utils.background_jobs import get_jobs
 import os
 os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 
@@ -24,9 +26,12 @@ class GCalendarSettings(Document):
 
 		accounts = frappe.get_all("GCalendar Account", filters={'enabled': 1})
 
+		queued_jobs = get_jobs(site=frappe.local.site, key='job_name')[frappe.local.site]
 		for account in accounts:
-			frappe.logger().debug(account)
-			frappe.enqueue('gcalendar.gcalendar.doctype.gcalendar_settings.gcalendar_settings.run_sync', account=account)
+			job_name = 'google_calendar_sync|{0}'.format(account.name)
+			if job_name not in queued_jobs:
+				frappe.enqueue('gcalendar.gcalendar.doctype.gcalendar_settings.gcalendar_settings.run_sync', queue='long', timeout=1500, job_name=job_name, account=account)
+				time.sleep(5)
 
 	def get_access_token(self):
 		if not self.refresh_token:

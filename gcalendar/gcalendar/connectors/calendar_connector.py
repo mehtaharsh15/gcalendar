@@ -109,7 +109,7 @@ class CalendarConnector(BaseConnection):
 				break
 		return list(results)
 
-	def insert_events(self, doctype, doc):
+	def insert_events(self, doctype, doc, migration_id=None):
 		event = {
 			'summary': doc.summary,
 			'description': doc.description
@@ -118,8 +118,8 @@ class CalendarConnector(BaseConnection):
 		dates = self.return_dates(doc)
 		event.update(dates)
 
-		if doc.gcalendar_sync_id:
-			event.update({"id": doc.gcalendar_sync_id})
+		if migration_id:
+			event.update({"id": migration_id})
 
 		if doc.repeat_this_event != 0:
 			recurrence = self.return_recurrence(doctype, doc)
@@ -158,13 +158,13 @@ class CalendarConnector(BaseConnection):
 				frappe.log_error(e, "GCalendar Synchronization Error")
 		except HttpError as err:
 			if err.resp.status in [404]:
-				self.insert_events(doctype, doc)
+				inserted_doc = self.insert_events(doctype, doc, migration_id)
 			else:
 				frappe.log_error(err.resp, "GCalendar Synchronization Error")
 
 	def delete_events(self, migration_id):
 		try:
-			self.gcalendar.events().delete(calendarId=self.account.gcalendar_id, eventId=migration_id).execute()
+			deleted = self.gcalendar.events().delete(calendarId=self.account.gcalendar_id, eventId=migration_id).execute()
 		except HttpError as err:
 			if err.resp.status in [410]:
 				pass
