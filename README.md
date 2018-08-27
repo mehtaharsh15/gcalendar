@@ -1,5 +1,5 @@
 ## ERPNext-Google Calendar Integration
-**Deprecated**
+**Deprecated** For reference only
 
 #### Installation
 This application requires Frappe v10.0.0 or higher.
